@@ -2,20 +2,16 @@ import streamlit as st
 import re
 from difflib import SequenceMatcher
 from PyPDF2 import PdfReader
-from pdf2image import convert_from_bytes
-import pytesseract
-from io import BytesIO
+
 # -------------------------------
-# 1. Function to extract text from PDF or TXT
+# 1. Extract text from PDFs or TXT
 def extract_text(file):
     text = ""
     try:
         if file.type == "application/pdf":
-            # Convert PDF pages to images
-            pdf_bytes = file.read()
-            pages = convert_from_bytes(pdf_bytes)
-            for page in pages:
-                page_text = pytesseract.image_to_string(page)
+            reader = PdfReader(file)
+            for page in reader.pages:
+                page_text = page.extract_text()
                 if page_text:
                     text += page_text + " "
         elif file.type == "text/plain":
@@ -31,28 +27,40 @@ def split_into_sentences(text):
     return [s.strip() for s in sentences if s.strip()]
 
 # -------------------------------
-# 3. Scoring function
+# 3. Score sentence based on keyword + similarity
 def score_sentence(query, sentence):
     query_words = query.lower().split()
     sentence_lower = sentence.lower()
+    # keyword overlap
     overlap = sum(1 for word in query_words if word in sentence_lower)
+    # similarity
     similarity = SequenceMatcher(None, query.lower(), sentence_lower).ratio()
-    return overlap * 2 + similarity  # keyword boost
+    # keyword boost
+    return overlap * 2 + similarity
 
 # -------------------------------
-# 4. Q&A function
+# 4. Get top sentences and highlight keywords
 def ask_question(query, sentences, top_n=5):
     scored = [(score_sentence(query, s), s) for s in sentences]
     top_sentences = [s for score, s in sorted(scored, key=lambda x: x[0], reverse=True)[:top_n] if score > 0]
+
     if not top_sentences:
         return "No relevant information found."
-    # Return top 1–2 sentences for conciseness
-    return " ".join(top_sentences[:2])
+
+    # Highlight matched keywords
+    highlighted = []
+    for sentence in top_sentences[:2]:  # top 1-2 sentences
+        s = sentence
+        for word in query.split():
+            pattern = re.compile(re.escape(word), re.IGNORECASE)
+            s = pattern.sub(f"**{word}**", s)
+        highlighted.append(s)
+    return " ".join(highlighted)
 
 # -------------------------------
-# 5. Streamlit interface
-st.title("Smarter Notes Q&A Tool")
-st.write("Upload your notes as TXT or PDF files, then ask a question.")
+# 5. Streamlit UI
+st.title("Notes Q&A Tool (Free)")
+st.write("Upload digital PDFs or TXT notes. Ask a question, get highlighted, concise answers.")
 
 uploaded_files = st.file_uploader("Upload your notes", type=["txt", "pdf"], accept_multiple_files=True)
 
@@ -66,7 +74,7 @@ if uploaded_files:
             sentences = split_into_sentences(text)
             all_sentences.extend(sentences)
 
-if not all_sentences and uploaded_files:
+if uploaded_files and not all_sentences:
     st.info("Uploaded files were read but contained no extractable text.")
 
 query = st.text_input("Ask a question about your notes:")
@@ -77,4 +85,4 @@ if query:
     else:
         answer = ask_question(query, all_sentences)
         st.subheader("Answer:")
-        st.write(answer)
+        st.markdown(answer)
