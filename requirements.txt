@@ -1,3 +1,2 @@
 streamlit
 PyPDF2
-pip install pytesseract pdf2image pillow
