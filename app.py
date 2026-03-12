@@ -2,16 +2,20 @@ import streamlit as st
 import re
 from difflib import SequenceMatcher
 from PyPDF2 import PdfReader
-
+from pdf2image import convert_from_bytes
+import pytesseract
+from io import BytesIO
 # -------------------------------
 # 1. Function to extract text from PDF or TXT
 def extract_text(file):
     text = ""
     try:
         if file.type == "application/pdf":
-            reader = PdfReader(file)
-            for page in reader.pages:
-                page_text = page.extract_text()
+            # Convert PDF pages to images
+            pdf_bytes = file.read()
+            pages = convert_from_bytes(pdf_bytes)
+            for page in pages:
+                page_text = pytesseract.image_to_string(page)
                 if page_text:
                     text += page_text + " "
         elif file.type == "text/plain":
