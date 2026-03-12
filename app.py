@@ -6,16 +6,19 @@ from PyPDF2 import PdfReader
 # -------------------------------
 # 1. Function to extract text from PDF or TXT
 def extract_text(file):
-    if file.type == "application/pdf":
-        reader = PdfReader(file)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text() + " "
-        return text
-    elif file.type == "text/plain":
-        return str(file.read(), "utf-8")
-    else:
-        return ""
+    text = ""
+    try:
+        if file.type == "application/pdf":
+            reader = PdfReader(file)
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + " "
+        elif file.type == "text/plain":
+            text = str(file.read(), "utf-8")
+    except Exception as e:
+        st.warning(f"Could not read file {file.name}: {e}")
+    return text.strip()
 
 # -------------------------------
 # 2. Split text into sentences
@@ -53,8 +56,14 @@ all_sentences = []
 if uploaded_files:
     for file in uploaded_files:
         text = extract_text(file)
-        sentences = split_into_sentences(text)
-        all_sentences.extend(sentences)
+        if not text:
+            st.warning(f"No text found in {file.name}")
+        else:
+            sentences = split_into_sentences(text)
+            all_sentences.extend(sentences)
+
+if not all_sentences and uploaded_files:
+    st.info("Uploaded files were read but contained no extractable text.")
 
 query = st.text_input("Ask a question about your notes:")
 
